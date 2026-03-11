@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Retail Jobs Admin</title>
+
+<style>
+body{
+font-family:Arial;
+background:#f4f4f4;
+padding:10px;
+}
+
+.header{
+background:black;
+color:white;
+padding:15px;
+margin-bottom:10px;
+}
+
+.card{
+background:white;
+padding:12px;
+margin:10px 0;
+border-radius:6px;
+box-shadow:0 0 5px #ccc;
+}
+
+.summary{
+font-weight:bold;
+cursor:pointer;
+padding:8px;
+background:#eee;
+margin-bottom:8px;
+}
+
+.details{
+display:none;
+margin-top:10px;
+}
+
+.pending{color:orange;font-weight:bold;}
+.approved{color:green;font-weight:bold;}
+.rejected{color:red;font-weight:bold;}
+.shortlisted{color:blue;font-weight:bold;}
+
+.section{
+margin-top:10px;
+padding:8px;
+background:#fafafa;
+border-left:3px solid black;
+}
+
+input,select,button,textarea{
+margin:4px;
+padding:6px;
+width:auto;
+}
+
+textarea{
+width:95%;
+height:60px;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<h2>Retail Jobs Admin Dashboard</h2>
+
+Total Applications: <span id="totalCount">0</span>
+
+<br><br>
+
+Search Name
+<input type="text" id="searchName" onkeyup="loadApplications()">
+
+Store
+<select id="storeFilter" onchange="loadApplications()">
+<option value="ALL">All Stores</option>
+<option>BOXER</option>
+<option>PICK N PAY</option>
+<option>SPAR</option>
+<option>SHOPRITE</option>
+<option>CASH & CARRY FOOD</option>
+<option>JOCK MORRISON</option>
+</select>
+
+<button onclick="filterStatus('ALL')">All</button>
+<button onclick="filterStatus('Pending')">Pending</button>
+<button onclick="filterStatus('Approved')">Approved</button>
+<button onclick="filterStatus('Rejected')">Rejected</button>
+<button onclick="filterStatus('Shortlisted')">Shortlisted</button>
+
+</div>
+
+<h3>Store Statistics</h3>
+<div id="storeStats"></div>
+
+<div id="applications"></div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import {
+getFirestore,
+collection,
+getDocs,
+updateDoc,
+deleteDoc,
+doc,
+getDoc
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+const firebaseConfig={
+apiKey:"AIzaSyDX9sWIN6ikuOPNC-nfukAc-LivOm8mQbk",
+authDomain:"retail-jobs-south-africa.firebaseapp.com",
+projectId:"retail-jobs-south-africa",
+storageBucket:"retail-jobs-south-africa.firebasestorage.app",
+messagingSenderId:"106568125704",
+appId:"1:106568125704:web:de7f94fb8840f5e5ce70bd"
+};
+
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
+
+emailjs.init("8LI2GBSLAT6rsUvp7");
+
+let currentFilter="ALL";
+
+window.filterStatus=function(status){
+currentFilter=status;
+loadApplications();
+}
+
+window.toggleDetails=function(id){
+let details=document.getElementById("details_"+id);
+details.style.display=details.style.display==="block"?"none":"block";
+}
+
+async function sendMail(data,messageBody){
+emailjs.send("service_d2s1u9g","template_4p1zzp3",{
+to_name:data.name,
+to_email:data.email,
+reference:data.reference,
+store:data.store,
+position:data.position,
+message:messageBody
+});
+}
+
+window.loadApplications=async function(){
+
+const container=document.getElementById("applications");
+container.innerHTML="";
+
+const search=document.getElementById("searchName").value.toLowerCase();
+const storeFilter=document.getElementById("storeFilter").value;
+
+const snapshot=await getDocs(collection(db,"applications"));
+
+let docs=[];
+
+snapshot.forEach(d=>docs.push({id:d.id,data:d.data()}));
+
+docs.reverse();
+
+document.getElementById("totalCount").innerText=docs.length;
+
+let stats={
+"BOXER":{total:0,pending:0,approved:0,rejected:0,shortlisted:0},
+"PICK N PAY":{total:0,pending:0,approved:0,rejected:0,shortlisted:0},
+"SPAR":{total:0,pending:0,approved:0,rejected:0,shortlisted:0},
+"SHOPRITE":{total:0,pending:0,approved:0,rejected:0,shortlisted:0},
+"CASH & CARRY FOOD":{total:0,pending:0,approved:0,rejected:0,shortlisted:0},
+"JOCK MORRISON":{total:0,pending:0,approved:0,rejected:0,shortlisted:0}
+};
+
+docs.forEach(item=>{
+let d=item.data;
+
+if(stats[d.store]){
+stats[d.store].total++;
+if(d.status==="Pending") stats[d.store].pending++;
+if(d.status==="Approved") stats[d.store].approved++;
+if(d.status==="Rejected") stats[d.store].rejected++;
+if(d.status==="Shortlisted") stats[d.store].shortlisted++;
+}
+});
+
+let statsHTML="";
+
+for(let store in stats){
+statsHTML+=`
+<b>${store}</b><br>
+Total: ${stats[store].total} |
+Pending: ${stats[store].pending} |
+Approved: ${stats[store].approved} |
+Rejected: ${stats[store].rejected} |
+Shortlisted: ${stats[store].shortlisted}
+<br><br>
+`;
+}
+
+document.getElementById("storeStats").innerHTML=statsHTML;
+
+docs.forEach(item=>{
+
+const data=item.data;
+const id=item.id;
+
+if(currentFilter!=="ALL" && data.status!==currentFilter) return;
+if(storeFilter!=="ALL" && data.store!==storeFilter) return;
+if(search && !data.name.toLowerCase().includes(search)) return;
+
+let statusClass="pending";
+if(data.status==="Approved") statusClass="approved";
+if(data.status==="Rejected") statusClass="rejected";
+if(data.status==="Shortlisted") statusClass="shortlisted";
+
+const card=document.createElement("div");
+
+card.className="card";
+
+card.innerHTML=`
+
+<div class="summary" onclick="toggleDetails('${id}')">
+${data.name} | ${data.store} | <span class="${statusClass}">${data.status}</span>
+</div>
+
+<div class="details" id="details_${id}">
+
+<div class="section">
+<b>Applicant Details</b><br>
+Name: ${data.name}<br>
+ID Number: ${data.id}<br>
+Email: ${data.email}<br>
+Phone: ${data.phone}<br>
+Reference Number: ${data.reference}<br>
+Store: ${data.store}<br>
+Position: ${data.position}<br>
+Residential Address: ${data.address}<br>
+Reference Contact Name: ${data.referenceName}<br>
+Relationship: ${data.referenceRelationship}<br>
+Reference Contact Phone: ${data.referencePhone}<br>
+Application Date: ${data.date}
+</div>
+
+<div class="section">
+<b>Documents Status</b><br>
+
+<select onchange="updateDocuments('${id}',this.value)">
+<option>${data.documentsStatus || "Pending Review"}</option>
+<option>Pending Review</option>
+<option>Documents Received</option>
+<option>Documents Verified</option>
+<option>Missing Documents</option>
+</select>
+</div>
+
+<div class="section">
+<textarea id="note_${id}">${data.adminNotes || ""}</textarea><br>
+
+<button onclick="approve('${id}')">Approve</button>
+<button onclick="reject('${id}')">Reject</button>
+<button onclick="shortlist('${id}')">Shortlist</button>
+<button onclick="saveNote('${id}')">Save Note</button>
+<button onclick="deleteApp('${id}')">Delete</button>
+</div>
+
+</div>
+`;
+
+container.appendChild(card);
+
+});
+
+}
+
+window.approve=async function(id){
+const ref=doc(db,"applications",id);
+const snap=await getDoc(ref);
+const d=snap.data();
+
+await updateDoc(ref,{status:"Approved",adminNotes:"Application approved."});
+
+await sendMail(d,
+"Congratulations.\n\nYour application has been approved successfully.\n\nApplication Details:\nStore: "+d.store+"\nPosition: "+d.position+"\nReference Number: "+d.reference+"\n\nPlacement is being considered at the nearest available store based on the residential address provided during your application.\n\nFurther communication regarding interview arrangements, reporting requirements, or next recruitment steps will be sent to you in due course.\n\nPlease continue checking your email and application status regularly.\n\nBest Regards\n\nRetail Jobs South Africa"
+);
+
+loadApplications();
+}
+
+window.reject=async function(id){
+const ref=doc(db,"applications",id);
+const snap=await getDoc(ref);
+const d=snap.data();
+
+await updateDoc(ref,{status:"Rejected",adminNotes:"Application rejected."});
+
+await sendMail(d,
+"We regret to inform you that your application was unsuccessful at this stage of the recruitment process.\n\nApplication Details:\nStore: "+d.store+"\nPosition: "+d.position+"\nReference Number: "+d.reference+"\n\nThank you for your interest and participation.\n\nYou may continue checking future opportunities and recruitment updates on the portal.\n\nBest Regards\n\nRetail Jobs South Africa"
+);
+
+loadApplications();
+}
+
+window.shortlist=async function(id){
+const ref=doc(db,"applications",id);
+const snap=await getDoc(ref);
+const d=snap.data();
+
+await updateDoc(ref,{status:"Shortlisted",adminNotes:"Shortlisted for next process."});
+
+await sendMail(d,
+"Your application has been shortlisted successfully.\n\nApplication Details:\nStore: "+d.store+"\nPosition: "+d.position+"\nReference Number: "+d.reference+"\n\nFurther communication regarding interview arrangements or the next recruitment stage will be sent to you.\n\nPlease continue checking your email and application status regularly.\n\nBest Regards\n\nRetail Jobs South Africa"
+);
+
+loadApplications();
+}
+
+window.updateDocuments=async function(id,value){
+const ref=doc(db,"applications",id);
+const snap=await getDoc(ref);
+const d=snap.data();
+
+await updateDoc(ref,{documentsStatus:value});
+
+if(value==="Documents Received"){
+await sendMail(d,
+"Your supporting documents have been successfully received and recorded.\n\nApplication Details:\nStore: "+d.store+"\nPosition: "+d.position+"\nReference Number: "+d.reference+"\n\nThe submitted documents are currently under review and verification as part of your application process.\n\nPlease continue checking your application status regularly on the portal while this process is being completed.\n\nBest Regards\n\nRetail Jobs South Africa"
+);
+}
+
+loadApplications();
+}
+
+window.saveNote=async function(id){
+let note=document.getElementById("note_"+id).value;
+await updateDoc(doc(db,"applications",id),{adminNotes:note});
+alert("Note saved");
+}
+
+window.deleteApp=async function(id){
+if(confirm("Delete application?")){
+await deleteDoc(doc(db,"applications",id));
+loadApplications();
+}
+}
+
+loadApplications();
+
+</script>
+
+</body>
+</html>
