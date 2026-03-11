@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Retail Jobs South Africa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+font-family:Arial;
+background:#f4f4f4;
+text-align:center;
+padding:10px;
+}
+
+.tabs{
+display:flex;
+justify-content:space-between;
+gap:6px;
+margin:15px 0;
+}
+
+.tabbtn{
+padding:12px;
+border:none;
+font-size:14px;
+width:32%;
+font-weight:bold;
+border-radius:4px;
+}
+
+.apply{
+background:green;
+color:white;
+}
+
+.status{
+background:gold;
+color:black;
+}
+
+.forgot{
+background:orange;
+color:black;
+}
+
+#guide{
+font-weight:bold;
+margin-bottom:12px;
+color:#333;
+min-height:20px;
+}
+
+.store{
+background:black;
+color:white;
+padding:16px;
+margin:8px 0;
+font-size:20px;
+cursor:pointer;
+}
+
+.section{
+display:none;
+margin-top:20px;
+}
+
+input,select,textarea,button{
+padding:10px;
+margin:5px;
+width:90%;
+}
+
+.note{
+font-size:13px;
+color:#444;
+margin:8px;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+</head>
+
+<body>
+
+<h2>Retail Jobs South Africa</h2>
+
+<div class="tabs">
+<button class="tabbtn apply" onclick="openSubmit()">Apply</button>
+<button class="tabbtn status" onclick="openStatus()">Status</button>
+<button class="tabbtn forgot" onclick="openForgot()">Forgot Ref</button>
+</div>
+
+<div id="guide"></div>
+
+<div class="store" onclick="openForm('BOXER')">BOXER</div>
+<div class="store" onclick="openForm('PICK N PAY')">PICK N PAY</div>
+<div class="store" onclick="openForm('SPAR')">SPAR</div>
+<div class="store" onclick="openForm('SHOPRITE')">SHOPRITE</div>
+<div class="store" onclick="openForm('CASH & CARRY FOOD')">CASH & CARRY FOOD</div>
+<div class="store" onclick="openForm('JOCK MORRISON')">JOCK MORRISON</div>
+
+<div id="formSection" class="section">
+
+<h3 id="storeTitle"></h3>
+
+<input type="text" id="fullName" placeholder="Full Name and Surname">
+<input type="text" id="idNumber" placeholder="SA ID Number">
+<input type="email" id="email" placeholder="Email Address">
+<input type="text" id="phone" placeholder="Cellphone Number">
+
+<h4>Reference Contact</h4>
+
+<input type="text" id="refName" placeholder="Reference Contact Name">
+
+<select id="relationship">
+<option value="">Relationship</option>
+<option>Parent</option>
+<option>Guardian</option>
+<option>Sibling</option>
+<option>Friend</option>
+<option>Partner</option>
+<option>Other</option>
+</select>
+
+<input type="text" id="refPhone" placeholder="Reference Cellphone Number">
+
+<p class="note">
+Applicants are encouraged to provide their current residential address so that placement may be considered at stores nearest to them.
+</p>
+
+<textarea id="address" placeholder="Residential Address"></textarea>
+
+<select id="position">
+<option value="">Select Position</option>
+<option>Cashier</option>
+<option>Shelf Packer</option>
+<option>General Worker</option>
+<option>Cleaner</option>
+<option>Security</option>
+<option>Stock Controller</option>
+</select>
+
+<button onclick="submitApplication()">Submit Application</button>
+
+<p id="message"></p>
+
+</div>
+
+<div id="statusSection" class="section">
+
+<input type="text" id="refCheck" placeholder="ID Number or Reference Number">
+<button onclick="checkStatus()">Check Status</button>
+
+<p id="statusResult"></p>
+
+</div>
+
+<div id="forgotSection" class="section">
+
+<input type="text" id="forgotID" placeholder="Enter your ID Number">
+<button onclick="recoverReference()">Recover Reference Number</button>
+
+<p id="refResult"></p>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getFirestore, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey:"AIzaSyDX9sWIN6ikuOPNC-nfukAc-LivOm8mQbk",
+authDomain:"retail-jobs-south-africa.firebaseapp.com",
+projectId:"retail-jobs-south-africa",
+storageBucket:"retail-jobs-south-africa.firebasestorage.app",
+messagingSenderId:"106568125704",
+appId:"1:106568125704:web:de7f94fb8840f5e5ce70bd"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+emailjs.init("8LI2GBSLAT6rsUvp7");
+
+let selectedStore="";
+
+window.openSubmit=function(){
+closeSections();
+guide.innerText="Please select a store below to continue.";
+}
+
+window.openStatus=function(){
+closeSections();
+statusSection.style.display="block";
+}
+
+window.openForgot=function(){
+closeSections();
+forgotSection.style.display="block";
+}
+
+function closeSections(){
+formSection.style.display="none";
+statusSection.style.display="none";
+forgotSection.style.display="none";
+guide.innerText="";
+}
+
+window.openForm=function(store){
+closeSections();
+selectedStore=store;
+formSection.style.display="block";
+storeTitle.innerText="Applying for "+store;
+}
+
+window.submitApplication=async function(){
+
+if(!fullName.value || !idNumber.value || !email.value || !phone.value || !refName.value || !relationship.value || !refPhone.value || !address.value || !position.value || !selectedStore){
+message.innerText="Please fill in all required fields.";
+return;
+}
+
+let duplicateID=query(collection(db,"applications"),where("id","==",idNumber.value));
+let duplicateIDCheck=await getDocs(duplicateID);
+
+if(!duplicateIDCheck.empty){
+message.innerText="Application already exists with this ID number. Please check application status using your ID number or reference number, or recover your reference number under Forgot Ref.";
+return;
+}
+
+let duplicatePhone=query(collection(db,"applications"),where("phone","==",phone.value));
+let duplicatePhoneCheck=await getDocs(duplicatePhone);
+
+if(!duplicatePhoneCheck.empty){
+message.innerText="This cellphone number has already applied. Please check status or recover reference number under Forgot Ref.";
+return;
+}
+
+let duplicateEmail=query(collection(db,"applications"),where("email","==",email.value));
+let duplicateEmailCheck=await getDocs(duplicateEmail);
+
+if(!duplicateEmailCheck.empty){
+message.innerText="This email address has already applied. Please check status or recover reference number under Forgot Ref.";
+return;
+}
+
+let reference="RET"+Math.floor(100000 + Math.random()*900000);
+
+let docsRequired=
+"- Certified copy of ID\n"+
+"- Updated CV\n"+
+"- School leaving results / qualifications if available\n"+
+"- Relevant supporting certificates";
+
+if(position.value==="Security"){
+docsRequired+="\n- PSIRA certificate if available";
+}
+
+if(position.value==="Cashier"){
+docsRequired+="\n- Cashier / till experience proof if available";
+}
+
+if(position.value==="Stock Controller"){
+docsRequired+="\n- Stock handling experience proof if available";
+}
+
+await addDoc(collection(db,"applications"),{
+reference,
+name:fullName.value,
+id:idNumber.value,
+email:email.value,
+phone:phone.value,
+referenceName:refName.value,
+referenceRelationship:relationship.value,
+referencePhone:refPhone.value,
+address:address.value,
+position:position.value,
+store:selectedStore,
+date:new Date().toLocaleString(),
+status:"Pending",
+documentsStatus:"Email Required",
+adminNotes:"Application received and will be reviewed."
+});
+
+emailjs.send("service_d2s1u9g","template_4p1zzp3",{
+to_name:fullName.value,
+to_email:email.value,
+reference:reference,
+store:selectedStore,
+position:position.value,
+message:
+"Your application has been successfully received.\n\n"+
+"Application Details:\n"+
+"Store: "+selectedStore+"\n"+
+"Position: "+position.value+"\n"+
+"Reference Number: "+reference+"\n\n"+
+"Documents Required:\n"+
+docsRequired+
+"\n\nThe Reference Number provided above must be used as the subject of your email when sending documents.\n"+
+"Documents must be sent to jobsfinder32@gmail.com in PDF format or as clean scanned copies.\n\n"+
+"Please continue checking your application status regularly on the portal.\n\n"+
+"Best Regards\n\n"+
+"Retail Jobs South Africa"
+});
+
+message.innerText=
+"Application submitted successfully. Your Reference Number is "+reference+
+". A confirmation email containing required supporting documents has been sent. Please check your status regularly.";
+
+}
+
+window.checkStatus=async function(){
+let v=refCheck.value;
+let q1=query(collection(db,"applications"),where("reference","==",v));
+let q2=query(collection(db,"applications"),where("id","==",v));
+let s=await getDocs(q1);
+if(s.empty) s=await getDocs(q2);
+
+if(s.empty){
+statusResult.innerText="No application found.";
+return;
+}
+
+s.forEach(x=>{
+let d=x.data();
+statusResult.innerHTML="Name: "+d.name+" | Store: "+d.store+" | Position: "+d.position+" | Status: "+d.status+" | Notes: "+d.adminNotes+" | Documents: "+d.documentsStatus;
+});
+}
+
+window.recoverReference=async function(){
+let q=query(collection(db,"applications"),where("id","==",forgotID.value));
+let s=await getDocs(q);
+
+if(s.empty){
+refResult.innerText="No application found.";
+return;
+}
+
+s.forEach(x=>{
+let d=x.data();
+refResult.innerText="Your Reference Number is: "+d.reference;
+});
+}
+
+</script>
+
+</body>
+</html>
